@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PekBlox Studio</title>
+<style>
+body, html { margin:0; padding:0; font-family: Arial; height:100%; background:#1f1f1f; color:white; overflow:hidden; }
+.topbar { background:#7a4a36; padding:10px; display:flex; align-items:center; justify-content:space-between; }
+.topbar .logo { font-size:22px; font-weight:bold; }
+.topbar button { background:#9c5b48; border:none; color:white; padding:6px 10px; margin-left:6px; cursor:pointer; }
+.sidebar { position:absolute; left:0; top:50px; bottom:0; width:200px; background:#2b2b2b; padding:10px; overflow-y:auto; }
+.panel { position:absolute; top:50px; bottom:0; right:0; width:250px; background:#2b2b2b; padding:10px; overflow-y:auto; }
+.canvas-container { position:absolute; top:50px; left:200px; right:250px; bottom:0; background:#111; display:flex; align-items:center; justify-content:center; }
+.block { width:60px; height:60px; position:absolute; border:1px solid #fff; cursor:move; display:flex; align-items:center; justify-content:center; font-size:12px; user-select:none; }
+button.block-btn { width:100%; margin-bottom:4px; background:#9c5b48; border:none; padding:6px; cursor:pointer; color:white; }
+h3 { margin:10px 0 4px 0; }
+input[type=text], input[type=number] { width:100%; margin-bottom:6px; padding:4px; background:#333; border:none; color:white; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">PekBlox Studio</div>
+  <div>
+    <button onclick="addBlock()">Add Block</button>
+    <button onclick="deleteBlock()">Delete Block</button>
+    <button onclick="saveGame()">Save</button>
+    <button onclick="loadGame()">Load</button>
+    <button onclick="publishGame()">Publish</button>
+  </div>
+</div>
+
+<div class="sidebar">
+  <h3>Explorer</h3>
+  <div id="explorer"></div>
+</div>
+
+<div class="panel">
+  <h3>Properties</h3>
+  <div>Selected Block:</div>
+  <input type="text" id="prop-name" placeholder="Name">
+  <input type="number" id="prop-x" placeholder="X">
+  <input type="number" id="prop-y" placeholder="Y">
+  <input type="number" id="prop-width" placeholder="Width">
+  <input type="number" id="prop-height" placeholder="Height">
+  <input type="text" id="prop-color" placeholder="Color (#fff)">
+  <button onclick="updateProperties()">Update</button>
+</div>
+
+<div class="canvas-container" id="canvas"></div>
+
+<script>
+// ================== PekBlox Studio Script ==================
+let blocks = [];
+let selectedBlock = null;
+
+// Load saved blocks if exist
+if(localStorage.getItem("studioBlocks")) {
+  blocks = JSON.parse(localStorage.getItem("studioBlocks"));
+}
+
+// ================== Helper Functions ==================
+function renderExplorer(){
+  const explorer = document.getElementById("explorer");
+  explorer.innerHTML = "";
+  blocks.forEach((b,i)=>{
+    const div = document.createElement("div");
+    div.innerText = b.name;
+    div.style.padding="2px";
+    div.style.cursor="pointer";
+    if(selectedBlock===i) div.style.background="#555";
+    div.onclick=()=>selectBlock(i);
+    explorer.appendChild(div);
+  });
+}
+
+function renderCanvas(){
+  const canvas = document.getElementById("canvas");
+  canvas.innerHTML = "";
+  blocks.forEach((b,i)=>{
+    const div = document.createElement("div");
+    div.className="block";
+    div.style.left=b.x+"px";
+    div.style.top=b.y+"px";
+    div.style.width=b.width+"px";
+    div.style.height=b.height+"px";
+    div.style.background=b.color;
+    div.innerText=b.name;
+    div.onmousedown=(e)=>startDrag(e,i);
+    canvas.appendChild(div);
+  });
+}
+
+// ================== Block Operations ==================
+function addBlock(){
+  const name = "Block"+(blocks.length+1);
+  const newBlock = {name:name, x:50, y:50, width:60, height:60, color:"#ff0000"};
+  blocks.push(newBlock);
+  renderExplorer();
+  renderCanvas();
+}
+
+function deleteBlock(){
+  if(selectedBlock!==null){
+    blocks.splice(selectedBlock,1);
+    selectedBlock=null;
+    renderExplorer();
+    renderCanvas();
+  } else alert("Select a block first!");
+}
+
+function selectBlock(index){
+  selectedBlock = index;
+  const b = blocks[index];
+  document.getElementById("prop-name").value = b.name;
+  document.getElementById("prop-x").value = b.x;
+  document.getElementById("prop-y").value = b.y;
+  document.getElementById("prop-width").value = b.width;
+  document.getElementById("prop-height").value = b.height;
+  document.getElementById("prop-color").value = b.color;
+  renderExplorer();
+}
+
+// ================== Dragging ==================
+let dragOffsetX=0, dragOffsetY=0, dragIndex=null;
+function startDrag(e,i){
+  dragIndex=i;
+  dragOffsetX = e.clientX - blocks[i].x - 200; // 200 = sidebar width
+  dragOffsetY = e.clientY - blocks[i].y - 50;  // 50 = topbar
+  document.onmousemove = dragMove;
+  document.onmouseup = dragEnd;
+}
+function dragMove(e){
+  if(dragIndex===null) return;
+  blocks[dragIndex].x = e.clientX - dragOffsetX - 200;
+  blocks[dragIndex].y = e.clientY - dragOffsetY - 50;
+  renderCanvas();
+}
+function dragEnd(){
+  dragIndex=null;
+  document.onmousemove=null;
+  document.onmouseup=null;
+}
+
+// ================== Properties ==================
+function updateProperties(){
+  if(selectedBlock===null) return;
+  const b = blocks[selectedBlock];
+  b.name = document.getElementById("prop-name").value;
+  b.x = parseInt(document.getElementById("prop-x").value);
+  b.y = parseInt(document.getElementById("prop-y").value);
+  b.width = parseInt(document.getElementById("prop-width").value);
+  b.height = parseInt(document.getElementById("prop-height").value);
+  b.color = document.getElementById("prop-color").value;
+  renderCanvas();
+  renderExplorer();
+}
+
+// ================== Save/Load ==================
+function saveGame(){
+  localStorage.setItem("studioBlocks", JSON.stringify(blocks));
+  alert("Game saved!");
+}
+
+function loadGame(){
+  if(localStorage.getItem("studioBlocks")){
+    blocks = JSON.parse(localStorage.getItem("studioBlocks"));
+    renderCanvas();
+    renderExplorer();
+    alert("Game loaded!");
+  }
+}
+
+function publishGame(){
+  const json = JSON.stringify(blocks);
+  const blob = new Blob([json], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "PekBloxGame.json";
+  a.click();
+}
+
+// ================== Initial Render ==================
+renderExplorer();
+renderCanvas();
+</script>
+
+</body>
+</html>
